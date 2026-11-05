@@ -1269,6 +1269,7 @@ ol.wl{padding-left:22px;line-height:1.7;margin:6px 0}
     bindShell();
     if (isMob()) DEV.sbhid = false;
     if ('serviceWorker' in navigator && /^https:|^http:\/\/localhost/.test(location.href)) navigator.serviceWorker.register('sw.js').catch(() => { });
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { }
     const sess = sessionStorage.getItem('sl_sess');
     if (sess && DB.get('p:' + sess)) openProfile(sess); else showLogin();
   };
@@ -2579,18 +2580,24 @@ ol.wl{padding-left:22px;line-height:1.7;margin:6px 0}
       <label style="display:flex;gap:8px;align-items:center;font-weight:600;color:var(--ink)"><input type="checkbox" id="sa" ${dev.auto ? 'checked' : ''}> অটো সিঙ্ক চালু (নেট থাকলে পরিবর্তনের ৩ সেকেন্ড পর নিজে সিঙ্ক হবে)</label>
       <div class="row" style="margin-top:10px"><div style="max-width:360px"><label>কোন নেটওয়ার্কে অটো সিঙ্ক হবে</label><select id="sn2"><option value="any" ${dev.net !== 'wifi' ? 'selected' : ''}>যেকোনো নেটওয়ার্ক</option><option value="wifi" ${dev.net === 'wifi' ? 'selected' : ''}>শুধু ওয়াইফাই</option></select></div></div>
       <div id="sstat" class="card" style="background:var(--inp);margin:12px 0;line-height:1.9"></div>
-      <div class="row"><button class="btn" id="sinst">📲 অ্যাপ হিসাবে ইনস্টল করুন</button><button class="btn" id="sper">🔒 স্থায়ী স্টোরেজের অনুরোধ</button><button class="btn" id="sref">অবস্থা দেখুন</button></div>`);
+      <div class="row"><button class="btn" id="sinst">📲 অ্যাপ হিসাবে ইনস্টল করুন</button><button class="btn" id="sper">🔒 স্থায়ী স্টোরেজের অনুরোধ</button><button class="btn" id="sref">অবস্থা দেখুন</button><button class="btn" id="sfix">📴 অফলাইন ক্যাশ নতুন করে তৈরি করুন</button></div>`);
     root.appendChild(c7);
     $('#sa', c7).onchange = e => { dev.auto = e.target.checked; A.saveDev(); A.setStatus(); if (dev.auto) A.sync({}); };
     $('#sn2', c7).onchange = e => { dev.net = e.target.value; A.saveDev(); };
     async function stat() {
       const c = navigator.connection || {}, mm = A.M(); let per = 'অজানা';
       try { if (navigator.storage && navigator.storage.persisted) per = (await navigator.storage.persisted()) ? 'হ্যাঁ ✓' : 'না (অনুরোধ করুন)'; } catch (e) { }
-      const sw = 'serviceWorker' in navigator && navigator.serviceWorker.controller ? 'প্রস্তুত ✓ (নেট ছাড়াও খুলবে)' : ('serviceWorker' in navigator ? 'এখনও প্রস্তুত নয় — একবার পেজ রিলোড করুন (HTTPS দরকার)' : 'এই ব্রাউজারে নেই');
+      let cached = false; try { cached = !!(await caches.match('index.html')); } catch (e) { }
+      const sw = 'serviceWorker' in navigator && navigator.serviceWorker.controller && cached ? 'প্রস্তুত ✓ (নেট ছাড়াও খুলবে)' : 'serviceWorker' in navigator && cached ? 'ক্যাশ আছে — একবার রিলোড করুন' : ('serviceWorker' in navigator ? 'এখনও প্রস্তুত নয় — একবার পেজ রিলোড করুন (HTTPS দরকার)' : 'এই ব্রাউজারে নেই');
       $('#sstat', c7).innerHTML = `🌐 ইন্টারনেট: <b>${navigator.onLine ? 'আছে' : 'নেই'}</b>${c.effectiveType ? ' · ' + esc(c.effectiveType) : ''}${c.type ? ' · ' + esc(c.type) : ''}<br>☁ Google সংযোগ: <b>${dev.url ? 'সেট করা আছে' : 'নেই'}</b>${mm.last ? ' · শেষ সিঙ্ক ' + esc(A.fmtDT(mm.last)) : ''}<br>⏳ অসিঙ্কড পরিবর্তন: <b>${mm.dirty ? 'আছে' : 'নেই'}</b><br>📴 অফলাইন মোড: <b>${sw}</b><br>💾 স্থায়ী স্টোরেজ: <b>${per}</b> · ধরন: ${A.DB.isIdb() ? 'IndexedDB' : 'localStorage'}`;
     }
     stat();
     $('#sref', c7).onclick = stat;
+    $('#sfix', c7).onclick = async () => {
+      if (!navigator.onLine) { A.toast('এটি করতে একবার ইন্টারনেট দরকার'); return; }
+      try { A.flushNow(); const rs = await navigator.serviceWorker.getRegistrations(); for (const r of rs) await r.unregister(); for (const k of await caches.keys()) await caches.delete(k); } catch (e) { }
+      A.toast('ক্যাশ নতুন করে তৈরি হচ্ছে…'); setTimeout(() => location.reload(), 600);
+    };
     $('#sper', c7).onclick = async () => { try { const ok = navigator.storage && navigator.storage.persist ? await navigator.storage.persist() : false; A.toast(ok ? 'স্থায়ী স্টোরেজ চালু হয়েছে' : 'ব্রাউজার অনুমতি দেয়নি (অ্যাপ ইনস্টল করলে সহজে মেলে)'); } catch (e) { A.toast('সম্ভব হয়নি'); } stat(); };
     $('#sinst', c7).onclick = async () => {
       const ev = A.installEvt;
