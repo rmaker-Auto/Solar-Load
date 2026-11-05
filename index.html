@@ -837,7 +837,7 @@ ol.wl{padding-left:22px;line-height:1.7;margin:6px 0}
     if (!DEV.url) throw new Error('অ্যাপ স্ক্রিপ্ট লিংক দেওয়া হয়নি');
     const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 120000);
     try {
-      const r = await fetch(DEV.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ action, folder: DEV.folder }, extra || {})), signal: ctl.signal, redirect: 'follow' });
+      const r = await fetch(DEV.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ action }, extra || {})), signal: ctl.signal, redirect: 'follow' });
       const t = await r.text(); let j;
       try { j = JSON.parse(t); } catch (e) { throw new Error('সার্ভারের উত্তর ঠিক নয় — Apps Script ডিপ্লয়ে "Anyone" অ্যাক্সেস দিয়েছেন কি?'); }
       return j;
@@ -1082,13 +1082,12 @@ ol.wl{padding-left:22px;line-height:1.7;margin:6px 0}
     dlg({
       title: '🔗 Google সংযোগ', w: 480,
       html: `<label>Google Apps Script ওয়েব অ্যাপ লিংক</label><input id="__gu" placeholder="https://script.google.com/macros/s/.../exec" value="${esc(DEV.url)}">
-        <label style="margin-top:10px">ড্রাইভ ফোল্ডারের নাম</label><input id="__gf" class="big" value="${esc(DEV.folder)}">
-        <p class="note">PC-তে যে লিংক ও ফোল্ডারের নাম দিয়েছিলেন হুবহু সেটিই দিন। সংরক্ষণের পর "সদস্য তালিকা আনুন" চাপুন।</p><p class="err" id="__ge"></p>`,
+        <p class="note">শুধু লিংকটি দিন — ড্রাইভের ফোল্ডারের নাম এই লিংক থেকেই নিজে ঠিক হয়ে যাবে। সংরক্ষণের পর "সদস্য তালিকা আনুন" চাপুন।</p><p class="err" id="__ge"></p>`,
       buttons: [
         { t: 'সংরক্ষণ', cls: 'pri', fn: async () => {
-          const u = $('#__gu').value.trim(), f = $('#__gf').value.trim() || 'Solar_Dashboard', er = $('#__ge');
+          const u = $('#__gu').value.trim(), er = $('#__ge');
           if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec/.test(u)) { er.textContent = 'লিংকটি https://script.google.com/macros/s/…/exec ধরনের হতে হবে'; return false; }
-          DEV.url = u; DEV.folder = f; saveDev(); toast('সংরক্ষিত হয়েছে'); showLogin(); } },
+          if (u !== DEV.url) DEV.folder = ''; DEV.url = u; saveDev(); try { const r = await gApi('ping', {}); if (r.ok && r.folder) { DEV.folder = r.folder; saveDev(); } } catch (e) { } toast('সংরক্ষিত হয়েছে'); showLogin(); } },
         { t: 'টেস্ট', close: false, fn: async () => {
           const er = $('#__ge'); DEV.url = $('#__gu').value.trim(); er.style.color = ''; er.textContent = 'পরীক্ষা চলছে…';
           try { const r = await gApi('ping', {}); er.style.color = r.ok ? 'var(--ok)' : ''; er.textContent = r.ok ? '✓ সংযোগ ঠিক আছে' : (r.error || 'ব্যর্থ'); } catch (e) { er.textContent = e.message; } } },
@@ -1263,7 +1262,7 @@ ol.wl{padding-left:22px;line-height:1.7;margin:6px 0}
   /* ===== চালু ===== */
   App.boot = async function () {
     await DB.init();
-    DEV = Object.assign({ url: '', folder: 'Solar_Dashboard', auto: true, net: 'any', sbw: 250, sbhid: false, theme: 0, members: [], meta: {}, last: '', appName: '', nc: { iw: 58, cw: 220 } }, DB.get('dev') || {});
+    DEV = Object.assign({ url: '', folder: '', auto: true, net: 'any', sbw: 250, sbhid: false, theme: 0, members: [], meta: {}, last: '', appName: '', nc: { iw: 58, cw: 220 } }, DB.get('dev') || {});
     DEV.meta = DEV.meta || {}; DEV.nc = Object.assign({ iw: 58, cw: 220 }, DEV.nc || {});
     DB.set('dev', DEV);
     bindShell();
@@ -2531,17 +2530,22 @@ ol.wl{padding-left:22px;line-height:1.7;margin:6px 0}
 
     /* ---------- ৪. Google Sheet / Drive ---------- */
     const c4 = card(`<h3>☁ Google Sheet / Drive</h3>
-      <div class="row"><div style="flex:1 1 200px"><label>ড্রাইভ ফোল্ডারের নাম (না থাকলে অটো তৈরি হবে)</label><input id="gf" class="big" value="${esc(dev.folder)}"></div><div style="flex:3 1 320px"><label>Apps Script ওয়েব অ্যাপ URL</label><input id="gu" placeholder="https://script.google.com/macros/s/…/exec" value="${esc(dev.url)}"></div></div>
+      <div class="row"><div style="flex:1 1 200px"><label>ড্রাইভ ফোল্ডারের নাম <span style="font-weight:400">(Apps Script লিংক অনুযায়ী নিজে সেট হয়; বদলাতে চাইলে নতুন নাম লিখে সেভ করুন)</span></label><input id="gf" class="big" placeholder="লিংক দিলে নাম নিজে আসবে" value="${esc(dev.folder)}"></div><div style="flex:3 1 320px"><label>Apps Script ওয়েব অ্যাপ URL</label><input id="gu" placeholder="https://script.google.com/macros/s/…/exec" value="${esc(dev.url)}"></div></div>
       <div class="row" style="margin-top:12px"><button class="btn pri" id="gsave">💾 সেভ ও ফোল্ডার তৈরি</button><button class="btn" id="gsync">⇅ এখনই সিঙ্ক (পাঠান ও আনুন)</button><button class="btn" id="gpull">⬇ শুধু ডাটা আনুন</button><button class="btn" id="gmem">👥 সদস্য তালিকা আনুন</button><button class="btn" id="gtest">🔌 টেস্ট কানেকশন</button></div>
       <p class="note" id="glog">${m.sheetUrl ? '' : 'Google Sheet-এ ডাটা প্রথম সিঙ্কের পর তৈরি হবে।'}${m.sheetUrl ? `<a href="${esc(m.sheetUrl)}" target="_blank" rel="noopener">📊 Google Sheet খুলুন</a>` : ''}</p>
       <p class="note">ফোল্ডারের ভেতরে প্রতিটি সদস্যের আলাদা সাবফোল্ডার হয় — তাতে ডাটা, শিট ও ছবি থাকে। শিটের লেখা ঘরের ভেতরেই সীমিত থাকে (ঘর বড় করলে বেশি দেখা যায়), নোট কলামে মাউস ধরলে পুরো লেখা পপআপে দেখা যায়।</p>`);
     root.appendChild(c4);
     const glog = (t, ok) => { const e = $('#glog', c4); e.style.color = ok === false ? 'var(--bad)' : ok ? 'var(--ok)' : ''; e.textContent = t; if (ok) { const u = A.M().sheetUrl; if (u) { const a = document.createElement('a'); a.href = u; a.target = '_blank'; a.rel = 'noopener'; a.textContent = '  📊 Google Sheet খুলুন'; e.append(a); } } };
-    const readG = () => { const u = $('#gu', c4).value.trim(), f = $('#gf', c4).value.trim() || 'Solar_Dashboard'; if (!GURL.test(u)) { glog('URL টি https://script.google.com/macros/s/…/exec ধরনের হতে হবে', false); return null; } dev.url = u; dev.folder = f; A.saveDev(); return { u, f }; };
+    const readG = () => { const u = $('#gu', c4).value.trim(); if (!GURL.test(u)) { glog('URL টি https://script.google.com/macros/s/…/exec ধরনের হতে হবে', false); return null; } if (u !== dev.url) { if ($('#gf', c4).value.trim() === dev.folder) $('#gf', c4).value = ''; dev.folder = ''; } dev.url = u; A.saveDev(); return { u }; };
+    const showF = f => { if (f) { dev.folder = f; A.saveDev(); const i = $('#gf', c4); if (i && !i.dataset.touched) i.value = f; } };
+    $('#gf', c4).addEventListener('input', e => { e.target.dataset.touched = '1'; });
+    if (dev.url) A.gApi('ping', {}).then(r => { if (r.ok) showF(r.folder); }).catch(() => { });
     async function run(fn) { try { await fn(); } catch (e) { glog('ত্রুটি: ' + e.message, false); } }
-    $('#gtest', c4).onclick = () => run(async () => { dev.url = $('#gu', c4).value.trim(); glog('পরীক্ষা চলছে…'); const r = await A.gApi('ping', {}); glog(r.ok ? '✓ সংযোগ ঠিক আছে' : (r.error || 'ব্যর্থ'), !!r.ok); });
+    $('#gtest', c4).onclick = () => run(async () => { dev.url = $('#gu', c4).value.trim(); glog('পরীক্ষা চলছে…'); const r = await A.gApi('ping', {}); if (r.ok) showF(r.folder); glog(r.ok ? '✓ সংযোগ ঠিক আছে — ফোল্ডার: ' + (r.folder || '') : (r.error || 'ব্যর্থ'), !!r.ok); });
     $('#gsave', c4).onclick = () => run(async () => {
-      if (!readG()) return; glog('সংযোগ পরীক্ষা ও ফোল্ডার তৈরি হচ্ছে…'); const p = await A.gApi('ping', {}); if (!p.ok) throw new Error(p.error || 'সংযোগ হয়নি');
+      if (!readG()) return; glog('সংযোগ পরীক্ষা ও ফোল্ডার তৈরি হচ্ছে…'); let p = await A.gApi('ping', {}); if (!p.ok) throw new Error(p.error || 'সংযোগ হয়নি');
+      const want = $('#gf', c4).value.trim(); if (want && want !== p.folder) { p = await A.gApi('setfolder', { name: want }); if (!p.ok) throw new Error(p.error || 'ফোল্ডার সেট হয়নি'); }
+      $('#gf', c4).dataset.touched = ''; showF(p.folder); if (p.folder) $('#gf', c4).value = p.folder;
       A.M().dirty = true; A.saveDev(); const r = await A.sync({ manual: true });
       if (r.ok) { try { await A.fetchMembers(); } catch (e) { } glog('✓ সংরক্ষিত — ফোল্ডার ও ডাটা তৈরি হয়েছে', true); } else glog(r.error || 'সিঙ্ক ব্যর্থ', false);
     });
